@@ -250,8 +250,6 @@ class MujocoEnv(metaclass=EnvMeta):
 
     def _reset_internal(self):
         """Resets simulation internal configurations."""
-        self.has_renderer = True
-        self.has_offscreen_renderer = False
         # create visualization screen or renderer
         if self.has_renderer and self.viewer is None:
             self.viewer = MujocoPyRenderer(self.sim)

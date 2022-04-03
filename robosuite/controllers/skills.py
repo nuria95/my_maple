@@ -255,84 +255,6 @@ class GripperSkill(BaseSkill):
     def _get_reach_pos(self, info):
         return info['cur_ee_pos']
 
-# class ReachOSCSkill(BaseSkill):
-#     def __init__(
-#             self,
-#             skill_type,
-#             use_gripper_params=True,
-#             use_ori_params=False,
-#             max_ac_calls=15,
-#             use_delta=False, # only applicable for skill_type=r1
-#             **config
-#     ):
-#         super().__init__(
-#             skill_type,
-#             use_gripper_params=use_gripper_params,
-#             use_ori_params=use_ori_params,
-#             max_ac_calls=max_ac_calls,
-#             use_delta=use_delta,
-#             **config
-#         )
-#         self._start_pos = None
-#         assert (not use_delta)
-
-#     def get_param_dim(self, base_param_dim):
-#         return base_param_dim
-
-#     def reset(self, params, config_update, info):
-#         self._start_pos = info['cur_ee_pos']
-#         super().reset(params, config_update, info)
-
-#     def get_pos_ac(self, info):
-#         goal_pos = self._get_reach_pos(info)
-#         is_delta = False
-#         return goal_pos, is_delta
-
-#     def get_ori_ac(self, info):
-#         use_ori_params = self._config['use_ori_params']
-#         assert use_ori_params is False
-
-#         ori = super().get_ori_ac(info)
-#         if use_ori_params:
-#             raise NotImplementedError
-#         else:
-#             ori[:] = 0.0
-#         is_delta = True
-#         return ori, is_delta
-
-#     def get_gripper_ac(self, info):
-#         gripper_action = super().get_gripper_ac(info)
-#         if not self._config['use_gripper_params']:
-#             gripper_action[:] = 0
-
-#         return gripper_action
-
-#     def _get_reach_pos(self, info):
-#         params = self._params
-
-#         if self._config['use_delta']:
-#             delta_pos = params[:3].copy()
-#             delta_pos = np.clip(delta_pos, -1, 1)
-#             delta_pos *= self._config['delta_xyz_scale']
-#             pos = self._start_pos + delta_pos
-#         else:
-#             pos = self._get_unnormalized_pos(
-#                 params[:3], self._config['global_xyz_bounds'])
-
-#         return pos
-
-#     def is_success(self, info):
-#         pos, delta = self.get_pos_ac(info)
-#         cur_pos = info['cur_ee_pos']
-#         th = self._config['reach_threshold']
-#         return (np.linalg.norm(pos - cur_pos) <= th)
-
-#     def _get_aff_centers(self, info):
-#         aff_centers = info.get('reach_pos', [])
-#         if aff_centers is None:
-#             return None
-#         return np.array(aff_centers, copy=True)
-
 class ReachOSCSkill(BaseSkill):
     def __init__(
             self,
@@ -362,16 +284,7 @@ class ReachOSCSkill(BaseSkill):
         super().reset(params, config_update, info)
 
     def get_pos_ac(self, info):
-       
-        if self._params[-1] == 0. or self._params[-1] == 1 or self._params[-1] == 2: 
-            goal_pos = [info['A_pos'][0], info['B_pos'][0], info['B_pos'][0]+ np.array([0,0,0.05])][int(self._params[-1])]
-        elif self._params[-1] == 3:
-           goal_pos = info['A_pos'][0]
-           goal_pos[2]=0.9
-
-
-        else:
-            goal_pos = info['A_pos'][0]
+        goal_pos = self._get_reach_pos(info)
         is_delta = False
         return goal_pos, is_delta
 
@@ -389,9 +302,8 @@ class ReachOSCSkill(BaseSkill):
 
     def get_gripper_ac(self, info):
         gripper_action = super().get_gripper_ac(info)
-        # if not self._config['use_gripper_params']:
-        #     gripper_action[:] = 0
-       
+        if not self._config['use_gripper_params']:
+            gripper_action[:] = 0
 
         return gripper_action
 
@@ -522,122 +434,6 @@ class ReachSkill(BaseSkill):
             return None
         return np.array(aff_centers, copy=True)
 
-# class GraspSkill(BaseSkill):
-
-#     STATES = ['INIT', 'LIFTED', 'HOVERING', 'REACHED', 'GRASPED']
-
-#     def __init__(
-#             self,
-#             skill_type,
-#             use_ori_params=True,
-#             max_ac_calls=15,
-#             num_reach_steps=1,
-#             num_grasp_steps=1,
-#             **config
-#     ):
-#         super().__init__(
-#             skill_type,
-#             use_ori_params=use_ori_params,
-#             max_ac_calls=max_ac_calls,
-#             num_reach_steps=num_reach_steps,
-#             num_grasp_steps=num_grasp_steps,
-#             **config
-#         )
-#         self._num_reach_steps = 0
-#         self._num_grasp_steps = 0
-
-#     def get_param_dim(self, base_param_dim):
-#         return base_param_dim
-
-#     def reset(self, *args, **kwargs):
-#         super().reset(*args, *kwargs)
-#         self._num_reach_steps = 0
-#         self._num_grasp_steps = 0
-
-#     def update_state(self, info):
-#         cur_pos = info['cur_ee_pos']
-#         goal_pos = self._get_reach_pos(info)
-
-#         th = self._config['reach_threshold']
-#         reached_lift = (cur_pos[2] >= self._config['lift_height'] - th)
-#         reached_xy = (np.linalg.norm(cur_pos[0:2] - goal_pos[0:2]) < th)
-#         reached_xyz = (np.linalg.norm(cur_pos - goal_pos) < th)
-#         reached_ori = self._reached_goal_ori(info)
-
-#         if self._state == 'GRASPED' or \
-#                 (self._state == 'REACHED' and (self._num_reach_steps >= self._config['num_reach_steps'])):
-#             self._state = 'GRASPED'
-#             self._num_grasp_steps += 1
-#         elif self._state == 'REACHED' or (reached_xyz and reached_ori):
-#             self._state = 'REACHED'
-#             self._num_reach_steps += 1
-#         elif reached_xy and reached_ori:
-#             self._state = 'HOVERING'
-#         elif reached_lift:
-#             self._state = 'LIFTED'
-#         else:
-#             self._state = 'INIT'
-
-#         assert self._state in GraspSkill.STATES
-
-#     def get_pos_ac(self, info):
-#         cur_pos = info['cur_ee_pos']
-#         goal_pos = self._get_reach_pos(info)
-
-#         is_delta = False
-#         if self._state == 'INIT':
-#             pos = cur_pos.copy()
-#             pos[2] = self._config['lift_height']
-#         elif self._state == 'LIFTED':
-#             pos = goal_pos.copy()
-#             pos[2] = self._config['lift_height']
-#         elif self._state == 'HOVERING':
-#             pos = goal_pos.copy()
-#         elif self._state == 'REACHED':
-#             pos = goal_pos.copy()
-#         elif self._state == 'GRASPED':
-#             pos = goal_pos.copy()
-#         else:
-#             raise NotImplementedError
-
-#         return pos, is_delta
-
-#     def get_ori_ac(self, info):
-#         ori = super().get_ori_ac(info)
-#         if self._config['use_ori_params']:
-#             if self._state == 'INIT':
-#                 ori[:] = 0.0
-#                 is_delta = True
-#             else:
-#                 is_delta = False
-#         else:
-#             ori[:] = 0.0
-#             is_delta = True
-#         return ori, is_delta
-
-#     def get_gripper_ac(self, info):
-#         gripper_action = super().get_gripper_ac(info)
-#         if self._state in ['GRASPED', 'REACHED']:
-#             gripper_action[:] = 1
-#         else:
-#             gripper_action[:] = -1
-#         return gripper_action
-
-#     def _get_reach_pos(self, info):
-#         params = self._params
-#         pos = self._get_unnormalized_pos(
-#             params[:3], self._config['global_xyz_bounds'])
-#         return pos
-
-#     def is_success(self, info):
-#         return self._num_grasp_steps >= self._config['num_grasp_steps']
-
-#     def _get_aff_centers(self, info):
-#         aff_centers = info.get('grasp_pos', [])
-#         if aff_centers is None:
-#             return None
-#         return np.array(aff_centers, copy=True)
-
 class GraspSkill(BaseSkill):
 
     STATES = ['INIT', 'LIFTED', 'HOVERING', 'REACHED', 'GRASPED']
@@ -672,7 +468,7 @@ class GraspSkill(BaseSkill):
 
     def update_state(self, info):
         cur_pos = info['cur_ee_pos']
-        goal_pos = info['A_pos'][0]
+        goal_pos = self._get_reach_pos(info)
 
         th = self._config['reach_threshold']
         reached_lift = (cur_pos[2] >= self._config['lift_height'] - th)
@@ -698,7 +494,7 @@ class GraspSkill(BaseSkill):
 
     def get_pos_ac(self, info):
         cur_pos = info['cur_ee_pos']
-        goal_pos = info['A_pos'][0]
+        goal_pos = self._get_reach_pos(info)
 
         is_delta = False
         if self._state == 'INIT':

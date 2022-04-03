@@ -313,9 +313,9 @@ class Stack(SingleArmEnv):
 
         pos_info = {}
 
-        pos_info['A'] = [cubeA_pos] # grasp target positions
+        pos_info['grasp'] = [cubeA_pos] # grasp target positions
         pos_info['push'] = [] # push target positions
-        pos_info['B'] = [cubeB_pos] # reach target positions
+        pos_info['reach'] = [cubeB_pos] # reach target positions
 
         info = {}
         for k in pos_info:
@@ -519,52 +519,3 @@ class Stack(SingleArmEnv):
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
             self._visualize_gripper_to_target(gripper=self.robots[0].gripper, target=self.cubeA)
-
-
-    def get_env_skills(self):
-        skill_dim = 5 # to do automatize
-        self.env_skills = OrderedDict()
-        SKILL_NAMES = [
-        'reachA',
-        'reachB',
-        'grasp/release',
-        'stack',
-        'lift'
-    ]
-
-        for skill_name in SKILL_NAMES:
-            if 'reach' in skill_name:
-                action = [0] * skill_dim
-                action[1] = 1.
-                action.extend([-0.1464965 ,  0.07655915,  0.835]) #random ori
-                action.extend([-1]) # open gripper
-                if skill_name == 'reachA':
-                    action.extend([0]) # CUBE A (red small)
-                elif skill_name == 'reachB':
-                    action.extend([1]) # CUBE B (green big)
-                
-            
-            elif 'grasp/release' in skill_name:
-                action = [0] * skill_dim
-                action[2] = 1.
-                action.extend([-0.1464965 ,  0.07655915,  0.835]) #random ori
-                action.extend([-1]) # open gripper to be changed later
-
-            elif 'stack' in skill_name:
-                action = [0] * skill_dim
-                action[1] = 1.
-                action.extend([-0.1464965 ,  0.07655915,  0.835]) #random ori
-                action.extend([1]) # closed gripper
-                action.extend([2]) # ABOVE CUBE B
-
-            elif 'lift' in skill_name:
-                action = [0] * skill_dim
-                action[1] = 1.
-                action.extend([-0.1464965 ,  0.07655915,  0.835]) #random ori
-                action.extend([1]) # closed gripper
-                action.extend([3]) # lift cube A
-
-
-
-                             
-            self.env_skills[skill_name] = np.array(action)

@@ -366,7 +366,6 @@ class RobotEnv(MujocoEnv):
             reward_sum += reward
             if image_obs_in_info:
                 image_obs.append(self._get_camera_obs()['agentview_image'])
-            self.render()
             if sc.done():
                 break
 
@@ -386,7 +385,7 @@ class RobotEnv(MujocoEnv):
         return self._get_observation(), reward, done, info
 
     def _get_env_info(self, action):
-        # assert len(action) == self._action_dim or len(action) == self._action_dim + 1 
+        assert len(action) == self._action_dim or len(action) == self._action_dim + 1 
         info = {}
         return info
 
