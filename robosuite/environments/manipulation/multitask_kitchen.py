@@ -12,7 +12,7 @@ from robosuite.utils.mjcf_utils import CustomMaterial, array_to_string, find_ele
 from robosuite.utils.buffers import RingBuffer
 import robosuite.utils.transform_utils as T
 
-from robosuite_task_zoo.models.multitask_kitchen import PotObject, StoveObject, ButtonObject, CabinetObject, ServingRegionObject
+from robosuite.models.multitask_kitchen import PotObject, StoveObject, ButtonObject, CabinetObject, ServingRegionObject
 
 class MultitaskKitchenDomain(SingleArmEnv):
     """
@@ -46,7 +46,8 @@ class MultitaskKitchenDomain(SingleArmEnv):
         camera_widths=256,
         camera_depths=False,
         contact_threshold=2.0,
-        task_id=0
+        task_id=0,
+        skill_config=None
     ):
         # settings for table top (hardcoded since it's not an essential part of the environment)
         self.table_full_size = (1.0, 0.8, 0.05)
@@ -120,6 +121,7 @@ class MultitaskKitchenDomain(SingleArmEnv):
             camera_heights=camera_heights,
             camera_widths=camera_widths,
             camera_depths=camera_depths,
+            skill_config=skill_config
         )
 
     def task_info(self, task_id=None):
