@@ -70,17 +70,14 @@ def rollout(
 
     o = env.reset()
     env.viewer.set_camera(camera_id=0)
-   
-    # if render:
-    #     # env.render(**render_kwargs)
-    #     env.render()
-
-
-    # Make everything fall before starting!
-    for i in range(100):
-            env.sim.step()
     env.render()
+   
 
+    # Resetting state capability
+    mj_state = env.get_mj_state()
+    env.sim.set_state(mj_state)
+    env.sim.forward()
+    env.render()
     a = 'reach_osc'
     next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='reach-bread')
     a = 'grasp'
@@ -155,6 +152,7 @@ if __name__ == "__main__":
             use_camera_obs=False,
             control_freq=20,
             hard_reset = False,
+            initialization_noise=None,
 
             **options
         )

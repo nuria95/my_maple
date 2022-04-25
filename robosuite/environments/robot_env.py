@@ -522,3 +522,7 @@ class RobotEnv(MujocoEnv):
             robots (str or list of str): Inputted requested robots at the task-level environment
         """
         raise NotImplementedError
+
+
+    def get_mj_state(self):
+        return self.sim.get_state()
