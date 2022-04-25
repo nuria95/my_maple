@@ -245,6 +245,10 @@ class MujocoEnv(metaclass=EnvMeta):
         self.sim.forward()
         # Make sure that all sites are toggled OFF by default
         self.visualize(vis_settings={vis: False for vis in self._visualizations})
+        
+        # Make everything fall before starting!
+        for i in range(100):
+                self.sim.step()
         # Return new observations
         return self._get_observation()
 
