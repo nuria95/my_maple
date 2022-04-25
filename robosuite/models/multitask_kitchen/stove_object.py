@@ -18,6 +18,8 @@ class StoveObject(MujocoXMLObject):
         super().__init__(str(absolute_path) + "/" + "stove.xml",
                          name=name, joints=None, obj_type="all", duplicate_collision_geoms=True)
 
+        self.height = 0.1
+
     @property
     def bottom_offset(self):
         return np.array([0, 0, -2 * self.height])

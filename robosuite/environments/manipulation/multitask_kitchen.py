@@ -8,7 +8,7 @@ from robosuite.models.objects import CylinderObject, BoxObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.placement_samplers import UniformRandomSampler, SequentialCompositeSampler
 from robosuite.utils.observables import Observable, sensor
-from robosuite.utils.mjcf_utils import CustomMaterial, array_to_string, find_elements, add_material
+from robosuite.utils.mjcf_utils import CustomMaterial, array_to_string, find_elements, add_material, string_to_array
 from robosuite.utils.buffers import RingBuffer
 import robosuite.utils.transform_utils as T
 
@@ -49,8 +49,8 @@ class MultitaskKitchenDomain(SingleArmEnv):
         task_id=0,
         skill_config=None
     ):
-        # settings for table top (hardcoded since it's not an essential part of the environment)
-        self.table_full_size = (1.0, 0.8, 0.05)
+        # settings for table top (hardcoded since it's not an essential part of the environment). We made it bigger
+        self.table_full_size =(1.0, 1.8, 0.05) #(1.0, 0.8, 0.05)
         self.table_offset = (-0.2, 0, 0.90)
 
         # reward configuration
@@ -298,12 +298,12 @@ class MultitaskKitchenDomain(SingleArmEnv):
 
         self.cabinet_object = CabinetObject(
             name="CabinetObject")
-        cabinet_object = self.cabinet_object.get_obj(); cabinet_object.set("quat", array_to_string((0., 0., 0., 1.))); cabinet_object.set("pos", array_to_string((0.15, -0.30, 0.03))); mujoco_arena.table_body.append(cabinet_object)
+        cabinet_object = self.cabinet_object.get_obj(); cabinet_object.set("quat", array_to_string((0., 0., 0., 1.))); cabinet_object.set("pos", array_to_string((0.15, -0.4, 0.03))); mujoco_arena.table_body.append(cabinet_object) #moved to the left
 
         bread_ingredient_size = [0.015, 0.023, 0.02]
-        veg_ingredient_size = [0.015, 0.027, 0.02]
-        cake_ingredient_size = [0.015, 0.023, 0.02]
-        orange_ingredient_size = [0.015, 0.027, 0.02]
+        # veg_ingredient_size = [0.015, 0.027, 0.02]
+        # cake_ingredient_size = [0.015, 0.023, 0.02]
+        # orange_ingredient_size = [0.015, 0.027, 0.02]
 
         self.bread_ingredient = BoxObject(
             name="cube_bread",
@@ -436,21 +436,22 @@ class MultitaskKitchenDomain(SingleArmEnv):
         index or a list of indices that point to the corresponding elements
         in a flatten array, which is how MuJoCo stores physical simulation data.
         """
-        super()._setup_references()
 
-        # Additional object references from this env
-        self.object_body_ids = dict()
-        self.object_body_ids["stove_1"] = self.sim.model.body_name2id(self.stove_object_1.root_body)
         
         self.pot_object_id = self.sim.model.body_name2id(self.pot_object.root_body)
         self.button_qpos_addrs.update({1: self.sim.model.get_joint_qpos_addr(self.button_object_1.joints[0])})
         self.serving_region_id = self.sim.model.body_name2id(self.serving_region.root_body)
         self.cabinet_qpos_addrs = self.sim.model.get_joint_qpos_addr(self.cabinet_object.joints[0])        
+        self.cabinet_drawer_id = self.sim.model.body_name2id(self.cabinet_object.bodies[2])
+        self.stove_object_id = self.sim.model.body_name2id(self.stove_object_1.root_body)
+        self.stove_button_id = self.sim.model.body_name2id(self.button_object_1.bodies[2])
 
         if self.task_id in [0, 3, 4, 5]:
-            self.sim.data.set_joint_qpos(self.button_object_1.joints[0], np.array([np.random.uniform(0.1, 0.3)]))
+            self.sim.data.set_joint_qpos(self.button_object_1.joints[0], np.array([np.random.uniform(-0.1, -0.3)])) # init stove button to the left (observer view)
         else:
             self.sim.data.set_joint_qpos(self.button_object_1.joints[0], np.array([-0.4]))
+        # Initialise state of the drawer (open, closed.. closed > -0.1.)
+        self.sim.data.set_joint_qpos(self.cabinet_object.joints[0], np.array([-0.04]))
 
         self.obj_body_id = {}        
         for obj in self.objects:
@@ -464,8 +465,8 @@ class MultitaskKitchenDomain(SingleArmEnv):
             OrderedDict: Dictionary mapping observable names to its corresponding Observable object
         """
         observables = super()._setup_observables()
-
-        observables["robot0_joint_pos"]._active = True
+        # observables = super()._get_observation()
+        # observables["robot0_joint_pos"]._active = True
         
         # low-level object information
         if self.use_object_obs:
@@ -531,6 +532,81 @@ class MultitaskKitchenDomain(SingleArmEnv):
                 
         return observables
 
+    def _get_observation(self):
+        """
+        Returns an OrderedDict containing observations [(name_string, np.array), ...].
+
+        Important keys:
+
+            `'robot-state'`: contains robot-centric information.
+
+            `'object-state'`: requires @self.use_object_obs to be True. Contains object-centric information.
+
+            `'image'`: requires @self.use_camera_obs to be True. Contains a rendered frame from the simulation.
+
+            `'depth'`: requires @self.use_camera_obs and @self.camera_depth to be True.
+            Contains a rendered depth map from the simulation
+
+        Returns:
+            OrderedDict: Observations from the environment
+        """
+        def obj_pos(obj_name):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id[obj_name]])
+
+        def obj_quat(obj_name):
+            return T.convert_quat(self.sim.data.body_xquat[self.obj_body_id[obj_name]], to="xyzw")
+
+        def obj_pose(obj_name, obs_cache):
+            return T.pose2mat((obs_cache[f"{obj_name}_pos"], obs_cache[f"{obj_name}_quat"]))
+        
+        
+
+        def world_pose_in_gripper(obs_cache):
+                return T.pose_inv(T.pose2mat((obs_cache[f"{pf}eef_pos"], obs_cache[f"{pf}eef_quat"]))) if\
+                f"{pf}eef_pos" in obs_cache and f"{pf}eef_quat" in obs_cache else np.eye(4)
+        def obj_to_eef_pos(obj_name, obs_cache):
+        
+            obj_pose = T.pose2mat((obs_cache[f"{obj_name}_pos"], obs_cache[f"{obj_name}_quat"]))
+            rel_pose = T.pose_in_A_to_pose_in_B(obj_pose, obs_cache["world_pose_in_gripper"])
+            rel_pos, rel_quat = T.mat2pose(rel_pose)
+            obs_cache[f"{obj_name}_to_{pf}eef_quat"] = rel_quat
+            return rel_pos, rel_quat
+        
+        pf = self.robots[0].robot_model.naming_prefix
+
+        di = super()._get_observation()
+        #  # Loop through robots and update the observations
+        # for robot in self.robots:
+        #     di = robot.get_observations(di)
+         # low-level object information
+        
+        di['world_pose_in_gripper'] = world_pose_in_gripper(di)
+        object_state_keys = []
+        if self.use_object_obs:
+            # Get robot prefix
+            # pr = self.robots[0].robot_model.naming_prefix
+
+            for obj in self.objects:
+                di[f'{obj.name}_pos'] = obj_pos(obj.name)
+                di[f'{obj.name}_quat'] = obj_quat(obj.name)
+                di[f'{obj.name}_ori'] = obj_pose(obj.name, di)
+
+                pos, quat = obj_to_eef_pos(obj.name, di)
+                di[f'{obj.name}_to_eef_pos'] = pos
+                di[f'{obj.name}_to_eef_quat'] = quat
+
+                object_state_keys.append("{}_pos".format(obj.name))
+                object_state_keys.append("{}_quat".format(obj.name))
+                object_state_keys.append("{}_to_eef_pos".format(obj.name))
+                object_state_keys.append("{}_to_eef_quat".format(obj.name))
+                
+            
+            di['stove_on'] = 1 if self._stove_on else -1
+            di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
+            di["cabinet_joint"] = self.sim.data.qpos[self.cabinet_qpos_addrs]
+
+        return di
+    
     def _create_obj_sensors(self, obj_name, modality="object"):
         """
         Helper function to create sensors for a given object. This is abstracted in a separate function call so that we
@@ -671,50 +747,7 @@ class MultitaskKitchenDomain(SingleArmEnv):
         # Run superclass method first
         super().visualize(vis_settings=vis_settings)
 
-    def step(self, action):
-        if self.action_dim == 4:
-            action = np.array(action)
-            action = np.concatenate((action[:3], action[-1:]), axis=-1)
-        
-        self._recent_force_torque = []
-        obs, reward, done, info = super().step(action)
 
-        self.steps += 1
-        if self.task_id in [0, 1, 5, 8] and self.steps < 5:
-            for _ in range(2):
-                super().step(action)
-                self.steps += 1
-
-            for _ in range(3):
-                self.sim.data.set_joint_qpos(self.cabinet_object.joints[0], np.array([-0.10]))
-                super().step(action)
-                self.steps += 1
-
-        
-        info["history_ft"] = np.clip(np.copy(self._history_force_torque.buf), a_min=None, a_max=2)
-        info["recent_ft"] = np.array(self._recent_force_torque)
-        done = self._check_success()
-        return obs, reward, done, info
-
-    def _pre_action(self, action, policy_step=False):
-        super()._pre_action(action, policy_step=policy_step)
-
-        self._history_force_torque.push(np.hstack((self.robots[0].ee_force - self.ee_force_bias, self.robots[0].ee_torque - self.ee_torque_bias)))
-        self._recent_force_torque.append(np.hstack((self.robots[0].ee_force - self.ee_force_bias, self.robots[0].ee_torque - self.ee_torque_bias)))
-
-        
-    def _post_action(self, action):
-
-        reward, done, info = super()._post_action(action)
-
-        # # Check if stove is turned on or not
-        self._post_process()
-
-        if np.linalg.norm(self.ee_force_bias) == 0:
-            self.ee_force_bias = self.robots[0].ee_force
-            self.ee_torque_bias = self.robots[0].ee_torque
-            
-        return reward, done, info
 
     def _post_process(self):
         stoves_on = {1: False,
@@ -745,9 +778,66 @@ class MultitaskKitchenDomain(SingleArmEnv):
 
         return np.linalg.norm(self.robots[0].ee_force - self.ee_force_bias) > self.contact_threshold
 
+    @property
+    def _stove_on(self):
+        return self.sim.data.qpos[self.button_qpos_addrs[1]] >= 0.0
+
+    @property
+    def _cabinet_handle(self):
+        return np.array([0., -self.sim.data.qpos[self.cabinet_qpos_addrs], 0.]) + self.cabinet_object.cabinet_handle_offset
+
+    @property
+    def _stove_top_offset(self):
+        return np.array([0., 0.05, 0.])
+
     def get_state_vector(self, obs):
         return np.concatenate([obs["robot0_gripper_qpos"],
                                obs["robot0_eef_pos"],
                                obs["robot0_eef_quat"]])
 
 
+    def _get_skill_info(self, skill_name):
+        info = {}
+        if skill_name == 'reach-pot':
+            info['pos'] = list(np.array(self.sim.data.body_xpos[self.pot_object_id])+np.array([0,0, 0.15])).copy()
+            info['gripper'] = np.array([0])
+        elif skill_name == 'grasp-pot':
+            info['pos']=list(np.array(self.sim.data.body_xpos[self.pot_object_id])+ self.pot_object.handle_offset[0]).copy()
+            info['ori'] = [T.mat2euler(self._get_observation()['PotObject_ori'][:3,:3])[2]] # get yaw angle
+            info['is_grasp'] = self._check_grasp(self.robots[0].gripper, self.pot_object)
+        
+        elif skill_name == 'reach-cabinet':
+            info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id]+ self._cabinet_handle).copy()# self.cabinet_object.get_obj().get("pos")).copy() + np.array([-0.2, 0.15, 1.])).copy()
+            info['gripper'] = np.array([0])
+           
+        
+        elif skill_name == 'reach-stove':
+            info['pos']=list(self.sim.data.body_xpos[self.stove_object_id] + self.stove_object_1.top_offset + self._stove_top_offset).copy()# self.cabinet_object.get_obj().get("pos")).copy() + np.array([-0.2, 0.15, 1.])).copy()
+            info['gripper'] = np.array([0])
+        
+        elif skill_name == 'reach-button':
+            info['pos'] = list(self.sim.data.body_xpos[self.stove_button_id] +self.button_object_1.reach_offset).copy()
+            info['gripper'] = np.array([1])
+
+        elif skill_name == 'grasp-cabinet':
+            info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id] + self._cabinet_handle + np.array([0,0,-0.08])).copy()
+            info['ori'] = [0.] # get yaw angle
+            info['is_grasp'] = self._check_grasp(self.robots[0].gripper, self.cabinet_object._contact_geom)
+            info['gripper'] = np.array([1])
+            info['num_grasp_steps'] = 1
+
+        elif skill_name == 'reach-cabinet2':
+            info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id]+ self._cabinet_handle+ np.array([0,0,-0.08])).copy()# self.cabinet_object.get_obj().get("pos")).copy() + np.array([-0.2, 0.15, 1.])).copy()
+            info['gripper'] = np.array([0])
+           
+        
+        # elif skill_name == 'reach-bread':
+        #     info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id]+ self._cabinet_handle).copy()# self.cabinet_object.get_obj().get("pos")).copy() + np.array([-0.2, 0.15, 1.])).copy()
+        #     info['gripper'] = np.array([0])
+        
+      
+        # bread_pos = self.sim.data.body_xpos[self.obj_body_id['cube_bread']].copy() + [0, 0, 0.15]
+       
+
+
+        return info

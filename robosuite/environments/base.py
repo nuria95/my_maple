@@ -279,6 +279,10 @@ class MujocoEnv(metaclass=EnvMeta):
         # additional housekeeping
         self.sim_state_initial = self.sim.get_state()
         self._get_reference()
+        try:
+            self._setup_references()
+        except AttributeError:
+            pass
         self.cur_time = 0
         self.timestep = 0
         self.done = False
@@ -520,6 +524,18 @@ class MujocoEnv(metaclass=EnvMeta):
             # check contact geom in geoms (flipped)
             c2_in_g1 = self.sim.model.geom_id2name(contact.geom2) in geoms_1
             c1_in_g2 = self.sim.model.geom_id2name(contact.geom1) in geoms_2 if geoms_2 is not None else True
+            #   # Get contact information
+            # if (c1_in_g1 and c2_in_g2) or (c1_in_g2 and c2_in_g1):
+            #     geom_name1 = self.sim.model.geom_id2name(contact.geom1)
+            #     geom_name2 = self.sim.model.geom_id2name(contact.geom2)
+            #     if geom_name1 == "floor" and geom_name2 == "floor":
+            #         continue
+
+            #     print("geom1: {}, geom2: {}".format(geom_name1, geom_name2))
+            #     print("contact id {}".format(id(contact)))
+                # print("friction: {}".format(contact.friction))
+                # print("normal: {}".format(contact.frame[0:3]))
+
             if (c1_in_g1 and c2_in_g2) or (c1_in_g2 and c2_in_g1):
                 return True
         return False

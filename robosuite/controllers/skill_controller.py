@@ -10,6 +10,7 @@ from robosuite.controllers.skills import (
     GripperSkill,
 )
 
+
 class SkillController:
 
     SKILL_NAMES = [
@@ -43,7 +44,10 @@ class SkillController:
             skills=['atomic'],
         )
         self._config = copy.deepcopy(default_config)
-        self._config.update(config)
+        try:
+            self._config.update(config)
+        except TypeError:
+            pass
 
         skill_names = self._config['skills']
         for skill_name in skill_names:
@@ -56,10 +60,7 @@ class SkillController:
         assert len(skill_names) >= 1
         assert self._config['success_penalty_fac'] >= 1.0
 
-        if skill_names == ['atomic']:
-            self._config['ignore_aff_rew'] = True
-        elif 'ignore_aff_rew' not in self._config:
-            self._config['ignore_aff_rew'] = False
+        self._config['ignore_aff_rew'] = True
 
         assert self._config['aff_penalty_fac'] >= 0.0
 
@@ -112,9 +113,9 @@ class SkillController:
     def get_skill_names(self):
         return list(self._skills.keys())
 
-    def reset(self, action):
-        skill_name = self.get_skill_name_from_action(action)
-        params = self.get_params_from_action(action)
+    def reset(self, skill_name, specific_skill=None):
+        # skill_name = self.get_skill_name_from_action(action)
+        # params = self.get_params_from_action(action)
         self._cur_skill = self._skills[skill_name]
 
         self._env._reset_skill()
@@ -124,8 +125,9 @@ class SkillController:
             robot_gripper_dim=robot.gripper.dof,
             robot_controller=robot.controller,
         )
+        self.specific_skill = specific_skill
         info = self._get_info()
-        self._cur_skill.reset(params, skill_config_update, info)
+        self._cur_skill.reset(skill_config_update, info)
         self._num_ac_calls = 0
         self._max_ac_calls = self._cur_skill.get_max_ac_calls()
         self._pos_is_delta = None
@@ -147,9 +149,10 @@ class SkillController:
         return np.concatenate([pos, ori, g])
 
     def _get_info(self):
-        info = self._env._get_skill_info()
+        info = self._env._get_skill_info(self.specific_skill)
         robot = self._env.robots[0]
-        info['cur_ee_pos'] = np.array(robot.sim.data.site_xpos[robot.eef_site_id])
+        info['cur_ee_pos'] = np.array(
+            robot.sim.data.site_xpos[robot.eef_site_id])
         return info
 
     def ac_is_delta(self):

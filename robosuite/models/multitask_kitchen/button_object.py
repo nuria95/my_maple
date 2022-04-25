@@ -19,6 +19,7 @@ class ButtonObject(MujocoXMLObject):
 
         self.friction = friction
         self.damping = damping
+        self.height = 0.05
         # if self.friction is not None:
         #     self._set_friction(self.friction)
         # if self.damping is not None:
@@ -58,3 +59,7 @@ class ButtonObject(MujocoXMLObject):
             "handle": self.naming_prefix + "handle"
         })
         return dic
+
+    @property
+    def reach_offset(self):
+        return np.array([0, -0.06, 0.1])

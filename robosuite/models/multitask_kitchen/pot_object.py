@@ -59,6 +59,8 @@ class PotObject(CompositeObject):
         )
 
         pot_height = 0.035
+        self.pot_height = pot_height
+        self.pot_length = pot_length
         add_to_dict(
             dic=obj_args,
             geom_types="box",
@@ -192,3 +194,7 @@ class PotObject(CompositeObject):
     @property
     def horizontal_radius(self):
         return self.length * np.sqrt(2)
+
+    @property
+    def handle_offset(self):
+        return np.array([[0.0, self.pot_length, 2 * self.pot_height + 0.007],[0.0, -self.pot_length, 2 * self.pot_height + 0.007]])

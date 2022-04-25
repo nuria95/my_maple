@@ -9,7 +9,7 @@ from robosuite.robots import ROBOT_CLASS_MAPPING
 from robosuite.controllers import reset_controllers
 
 from collections import OrderedDict
-
+import time
 from robosuite.controllers.skill_controller import SkillController
 
 
@@ -357,16 +357,17 @@ class RobotEnv(MujocoEnv):
 
     def step(self, action, image_obs_in_info=False, **kwargs):
         sc = self.skill_controller
-        sc.reset(action)
+        sc.reset(action, **kwargs)
         image_obs = []
         reward_sum = 0
         while True:
             action_ll = sc.step()
-            _, reward, done, info = super().step(action_ll, **kwargs)
+            _, reward, done, info = super().step(action_ll)
             reward_sum += reward
             if image_obs_in_info:
                 image_obs.append(self._get_camera_obs()['agentview_image'])
             self.render()
+            # time.sleep(0.1)
             if sc.done():
                 break
 
@@ -379,10 +380,13 @@ class RobotEnv(MujocoEnv):
             info['image_obs'] = image_obs
         info['num_ac_calls'] = sc.get_num_ac_calls()
         info['skill_complete'] = float(sc.is_success())
-        info['aff_reward'] = sc.get_aff_reward()
-        info['aff_success'] = float(sc.get_aff_success())
+        # info['aff_reward'] = sc.get_aff_reward()
+        # info['aff_success'] = float(sc.get_aff_success())
         info.update(self._get_env_info(action))
 
+        return self._get_observation(), reward, done, info
+    def step_basic(self, action_ll):
+        obs, reward, done, info = super().step(action_ll)
         return self._get_observation(), reward, done, info
 
     def _get_env_info(self, action):

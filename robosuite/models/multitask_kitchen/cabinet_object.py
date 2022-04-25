@@ -29,3 +29,11 @@ class CabinetObject(MujocoXMLObject):
     @property
     def horizontal_radius(self):
         return self.length * np.sqrt(2)
+
+    @property
+    def cabinet_handle_offset(self):
+        return np.array([0.0, 0.13, 0.1])
+    
+    @property
+    def _contact_geom(self):
+        return ['cabinet_g15', ]
