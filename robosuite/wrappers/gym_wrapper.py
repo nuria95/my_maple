@@ -108,7 +108,7 @@ class GymWrapper(Wrapper, Env):
                 - (dict) misc information
         """
         ob_dict, reward, done, info = self.env.step(action, **kwargs)
-        return self._flatten_obs(ob_dict), reward, done, info
+        return self._flatten_obs(ob_dict), reward, done, info, ob_dict
 
     def seed(self, seed=None):
         """

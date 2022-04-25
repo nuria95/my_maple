@@ -314,7 +314,6 @@ class MultitaskKitchenDomain(SingleArmEnv):
             density=500.,
         )
 
-        
         for obj_body in [
                 self.button_object_1,
                 self.stove_object_1,
@@ -826,18 +825,15 @@ class MultitaskKitchenDomain(SingleArmEnv):
             info['gripper'] = np.array([1])
             info['num_grasp_steps'] = 1
 
-        elif skill_name == 'reach-cabinet2':
-            info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id]+ self._cabinet_handle+ np.array([0,0,-0.08])).copy()# self.cabinet_object.get_obj().get("pos")).copy() + np.array([-0.2, 0.15, 1.])).copy()
+        elif skill_name == 'reach-bread':
+            info['pos']=list(self.sim.data.body_xpos[self.obj_body_id['cube_bread']] + np.array([0,0,0.05])).copy() 
+            info['ori'] = [T.mat2euler(self._get_observation()['cube_bread_ori'][:3,:3])[2]] # get yaw angle
             info['gripper'] = np.array([0])
-           
-        
-        # elif skill_name == 'reach-bread':
-        #     info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id]+ self._cabinet_handle).copy()# self.cabinet_object.get_obj().get("pos")).copy() + np.array([-0.2, 0.15, 1.])).copy()
-        #     info['gripper'] = np.array([0])
-        
-      
-        # bread_pos = self.sim.data.body_xpos[self.obj_body_id['cube_bread']].copy() + [0, 0, 0.15]
-       
 
+        elif skill_name == 'grasp-bread':
+            info['pos']=list(self.sim.data.body_xpos[self.obj_body_id['cube_bread']]).copy()
+            info['ori'] = [0.] # get yaw angle
+            info['is_grasp'] = self._check_grasp(self.robots[0].gripper, self.bread_ingredient)
+            info['gripper'] = np.array([1])
 
         return info
