@@ -549,14 +549,7 @@ class MultitaskKitchenDomain(SingleArmEnv):
         Returns:
             OrderedDict: Observations from the environment
         """
-        def obj_pos(obj_name):
-            return np.array(self.sim.data.body_xpos[self.obj_body_id[obj_name]])
 
-        def obj_quat(obj_name):
-            return T.convert_quat(self.sim.data.body_xquat[self.obj_body_id[obj_name]], to="xyzw")
-
-        def obj_pose(obj_name, obs_cache):
-            return T.pose2mat((obs_cache[f"{obj_name}_pos"], obs_cache[f"{obj_name}_quat"]))
         
         
 
@@ -568,8 +561,9 @@ class MultitaskKitchenDomain(SingleArmEnv):
             obj_pose = T.pose2mat((obs_cache[f"{obj_name}_pos"], obs_cache[f"{obj_name}_quat"]))
             rel_pose = T.pose_in_A_to_pose_in_B(obj_pose, obs_cache["world_pose_in_gripper"])
             rel_pos, rel_quat = T.mat2pose(rel_pose)
+            rel_yaw = [T.mat2euler(T.pose2mat((rel_pos, rel_quat))[:3,:3])[2]] #added by me
             obs_cache[f"{obj_name}_to_{pf}eef_quat"] = rel_quat
-            return rel_pos, rel_quat
+            return rel_pos, rel_quat, rel_yaw
         
         pf = self.robots[0].robot_model.naming_prefix
 
@@ -586,26 +580,45 @@ class MultitaskKitchenDomain(SingleArmEnv):
             # pr = self.robots[0].robot_model.naming_prefix
 
             for obj in self.objects:
-                di[f'{obj.name}_pos'] = obj_pos(obj.name)
-                di[f'{obj.name}_quat'] = obj_quat(obj.name)
-                di[f'{obj.name}_ori'] = obj_pose(obj.name, di)
+                di[f'{obj.name}_pos'] = self.obj_pos(obj.name)
+                di[f'{obj.name}_quat'] = self.obj_quat(obj.name)
+                di[f'{obj.name}_ori'] = self.obj_pose(obj.name, di)
+                di[f'{obj.name}_yaw'] = self.obj_ori(di[f'{obj.name}_ori'])
 
-                pos, quat = obj_to_eef_pos(obj.name, di)
+                pos, quat, yaw = obj_to_eef_pos(obj.name, di)
                 di[f'{obj.name}_to_eef_pos'] = pos
                 di[f'{obj.name}_to_eef_quat'] = quat
-
-                object_state_keys.append("{}_pos".format(obj.name))
-                object_state_keys.append("{}_quat".format(obj.name))
+                di[f'{obj.name}_to_eef_yaw'] = yaw
+                
+                # Not necessary for now
+                # object_state_keys.append("{}_pos".format(obj.name))
+                
+                # object_state_keys.append("{}_quat".format(obj.name))
+                # object_state_keys.append("{}_yaw".format(obj.name))
                 object_state_keys.append("{}_to_eef_pos".format(obj.name))
-                object_state_keys.append("{}_to_eef_quat".format(obj.name))
+                object_state_keys.append("{}_to_eef_yaw".format(obj.name))
+                # object_state_keys.append("{}_to_eef_quat".format(obj.name))
                 
             
-            di['stove_on'] = 1 if self._stove_on else -1
+            di['stove_on'] = [1] if self._stove_on else [-1]
+            di["cabinet_joint"] = [self.sim.data.qpos[self.cabinet_qpos_addrs]]
             di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
-            di["cabinet_joint"] = self.sim.data.qpos[self.cabinet_qpos_addrs]
 
         return di
     
+    def obj_pos(self, obj_name):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id[obj_name]])
+
+    def obj_quat(self, obj_name):
+        return T.convert_quat(self.sim.data.body_xquat[self.obj_body_id[obj_name]], to="xyzw")
+
+    def obj_pose(self, obj_name, obs_cache):
+        return T.pose2mat((obs_cache[f"{obj_name}_pos"], obs_cache[f"{obj_name}_quat"]))
+
+    def obj_ori(self, obj_pose):
+        return np.array([T.mat2euler(obj_pose[:3,:3])[2]])
+
+
     def _create_obj_sensors(self, obj_name, modality="object"):
         """
         Helper function to create sensors for a given object. This is abstracted in a separate function call so that we
@@ -801,8 +814,11 @@ class MultitaskKitchenDomain(SingleArmEnv):
             info['pos'] = list(np.array(self.sim.data.body_xpos[self.pot_object_id])+np.array([0,0, 0.15])).copy()
             info['gripper'] = np.array([0])
         elif skill_name == 'grasp-pot':
-            info['pos']=list(np.array(self.sim.data.body_xpos[self.pot_object_id])+ self.pot_object.handle_offset[0]).copy()
-            info['ori'] = [T.mat2euler(self._get_observation()['PotObject_ori'][:3,:3])[2]] # get yaw angle
+            pot_pos = np.array(self.sim.data.body_xpos[self.pot_object_id])
+            info['pos']=list(pot_pos+ self.pot_object.handle_offset[0]).copy()
+            
+            info['ori'] = self.obj_ori(self.obj_pose('PotObject',  {'PotObject_pos': pot_pos, 'PotObject_quat': self.obj_quat('PotObject') }))
+               
             info['is_grasp'] = self._check_grasp(self.robots[0].gripper, self.pot_object)
         
         elif skill_name == 'reach-cabinet':
@@ -826,8 +842,10 @@ class MultitaskKitchenDomain(SingleArmEnv):
             info['num_grasp_steps'] = 1
 
         elif skill_name == 'reach-bread':
-            info['pos']=list(self.sim.data.body_xpos[self.obj_body_id['cube_bread']] + np.array([0,0,0.05])).copy() 
-            info['ori'] = [T.mat2euler(self._get_observation()['cube_bread_ori'][:3,:3])[2]] # get yaw angle
+            bread_pos = self.sim.data.body_xpos[self.obj_body_id['cube_bread']]
+            info['pos']=list( bread_pos + np.array([0,0,0.05])).copy() 
+            
+            # info['ori'] = self.obj_ori(self.obj_pose('cube_bread',  {'cube_bread_pos': bread_pos, 'cube_bread_quat': self.obj_quat('cube_bread') }))
             info['gripper'] = np.array([0])
 
         elif skill_name == 'grasp-bread':
