@@ -32,7 +32,7 @@ class CabinetObject(MujocoXMLObject):
 
     @property
     def cabinet_handle_offset(self):
-        return np.array([0.0, 0.13, 0.1])
+        return np.array([0.0, 0.12, 0.04])
     
     @property
     def _contact_geom(self):

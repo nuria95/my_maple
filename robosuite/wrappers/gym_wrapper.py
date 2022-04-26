@@ -110,6 +110,25 @@ class GymWrapper(Wrapper, Env):
         ob_dict, reward, done, info = self.env.step(action, **kwargs)
         return self._flatten_obs(ob_dict), reward, done, info, ob_dict
 
+    def step_basic(self, action, **kwargs):
+        """
+        Extends vanilla step() function call to return flattened observation instead of normal OrderedDict.
+
+        Args:
+            action (np.array): Action to take in environment
+
+        Returns:
+            4-tuple:
+
+                - (np.array) flattened observations from the environment
+                - (float) reward from the environment
+                - (bool) whether the current episode is completed or not
+                - (dict) misc information
+        """
+        ob_dict, reward, done, info = self.env.step_basic(action, **kwargs)
+        return self._flatten_obs(ob_dict), reward, done, info, ob_dict
+
+
     def seed(self, seed=None):
         """
         Utility function to set numpy seed

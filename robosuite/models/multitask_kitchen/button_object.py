@@ -62,4 +62,4 @@ class ButtonObject(MujocoXMLObject):
 
     @property
     def reach_offset(self):
-        return np.array([0, -0.06, 0.1])
+        return np.array([0.0, -0.05, 0.1])

@@ -73,66 +73,80 @@ def rollout(
     env.render()
    
 
-    # Resetting state capability
-    mj_state = env.get_mj_state()
-    env.sim.set_state(mj_state)
-    env.sim.forward()
-    env.render()
+    # # Resetting state capability
+    # mj_state = env.get_mj_state()
+    # env.sim.set_state(mj_state)
+    # env.sim.forward()
+    # env.render()
     a = 'reach_osc'
     next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='reach-bread')
+    
+ 
     a = 'grasp'
-    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='grasp-bread')
+    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='grasp-cube_bread')
 
   
     a = 'reach_osc'
     next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info, specific_skill='reach-pot')
 
-    env.skill_controller._pos_is_delta = True
-    env.skill_controller._ori_is_delta = True
-    for i in range(20):
-        obs, reward, done, info = env.step_basic([0.,0.,0,0, -1])
-        env.render()
     
+
+    step_basic(env, skill = 'release-cube_bread')
+    env.render()
+
     a = 'grasp'
-    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info, specific_skill='grasp-pot')
+    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info, specific_skill='grasp-PotObject')
 
     a = 'reach_osc'
     next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='reach-stove')
     
 
-    env.skill_controller._pos_is_delta = True
-    env.skill_controller._ori_is_delta = True
-    for i in range(20):
-        obs, reward, done, info = env.step_basic([0.,0.,0,0, -1])
-        env.render()
+    step_basic(env, skill = 'release-PotObject')
 
     a = 'reach_osc'
     next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='reach-button')
 
-    env.skill_controller._pos_is_delta = True
-    env.skill_controller._ori_is_delta = True
-    for i in range(40):
-       obs, reward, done, info = env.step_basic([0.,0.1,0,0, 1])
-       env.render()
+    step_basic(env, skill = 'slide-button')
+    env.render()
 
    
     a = 'reach_osc'
     next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='reach-cabinet')
     
-    
     a = 'grasp'
-    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info, specific_skill='grasp-cabinet')
-    
-    env.skill_controller._pos_is_delta = True
-    env.skill_controller._ori_is_delta = True
-    for i in range(40):
-       obs, reward, done, info = env.step_basic([0.,-0.24,0,0, 1])
-       env.render()
-    for i in range(40):
-       obs, reward, done, info = env.step_basic([0.,0.2,0,0, 1])
-       env.render()
+    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='grasp-cabinet')
+
+   
+    step_basic(env, skill = 'slide-cabinet')
     
   
+def step_basic(env, skill):    
+    env.skill_controller._pos_is_delta = True
+    env.skill_controller._ori_is_delta = True
+    
+    info = env._get_skill_info(skill)
+    if 'release' in skill:
+        for i in range(5):
+            obs, reward, done, env_info, ob_dict = env.step_basic(info['delta1'])
+            env.render()
+        for i in range(20):
+            obs, reward, done, env_info, ob_dict= env.step_basic(info['delta2'])
+            env.render()
+        
+    
+    elif 'slide' in skill:
+        for i in range(20):
+            obs, reward, done, env_info, ob_dict = env.step_basic(info['delta'])
+            env.render()
+    
+    else:
+        env_info = {'skill_complete': False}
+        return None, 0., False, env_info, None
+
+    env_info['skill_complete'] = True
+
+    return obs, reward, done, env_info, ob_dict
+        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
@@ -152,7 +166,7 @@ if __name__ == "__main__":
             use_camera_obs=False,
             control_freq=20,
             hard_reset = False,
-            initialization_noise=None,
+            #initialization_noise=None,
 
             **options
         )

@@ -123,7 +123,10 @@ class MultitaskKitchenDomain(SingleArmEnv):
             camera_depths=camera_depths,
             skill_config=skill_config
         )
-
+        self.valid_skills = ['reach_pot','reach-cabinet','reach-stove', 'reach-button', 'reach-bread'
+                            'grasp-PotObject','grasp-cabinet', 'grasp-cube_bread',
+                            'release-cube_bread','release-PotObject','release-cabinet',
+                            'slide-button', 'slide-cabinet']
     def task_info(self, task_id=None):
         """Print the task id and variant id in the paper"""
         if task_id is None:
@@ -421,6 +424,7 @@ class MultitaskKitchenDomain(SingleArmEnv):
             self.pot_object,
             self.serving_region,
             self.cabinet_object,
+            self.button_object_1,
         ]
         
         self.model.merge_assets(self.button_object_1)
@@ -445,10 +449,10 @@ class MultitaskKitchenDomain(SingleArmEnv):
         self.stove_object_id = self.sim.model.body_name2id(self.stove_object_1.root_body)
         self.stove_button_id = self.sim.model.body_name2id(self.button_object_1.bodies[2])
 
-        if self.task_id in [0, 3, 4, 5]:
+        if self.task_id in [1, 3, 4, 5]:
             self.sim.data.set_joint_qpos(self.button_object_1.joints[0], np.array([np.random.uniform(-0.1, -0.3)])) # init stove button to the left (observer view)
         else:
-            self.sim.data.set_joint_qpos(self.button_object_1.joints[0], np.array([-0.4]))
+            self.sim.data.set_joint_qpos(self.button_object_1.joints[0], np.array([-0.3]))
         # Initialise state of the drawer (open, closed.. closed > -0.1.)
         self.sim.data.set_joint_qpos(self.cabinet_object.joints[0], np.array([-0.04]))
 
@@ -604,10 +608,19 @@ class MultitaskKitchenDomain(SingleArmEnv):
             di["cabinet_joint"] = [self.sim.data.qpos[self.cabinet_qpos_addrs]]
             di["object-state"] = np.concatenate([di[k] for k in object_state_keys])
 
+        self.obs = di
         return di
     
     def obj_pos(self, obj_name):
-            return np.array(self.sim.data.body_xpos[self.obj_body_id[obj_name]])
+        if obj_name == 'cabinet':
+            offset=self._cabinet_handle
+            return np.array(self.sim.data.body_xpos[self.obj_body_id[obj_name]]) + offset
+        elif obj_name == 'button':
+            offset = np.array([0.,0., 0.1]) 
+            return np.array(self.sim.data.body_xpos[self.obj_body_id[obj_name]]) + offset
+            
+        
+        return np.array(self.sim.data.body_xpos[self.obj_body_id[obj_name]])
 
     def obj_quat(self, obj_name):
         return T.convert_quat(self.sim.data.body_xquat[self.obj_body_id[obj_name]], to="xyzw")
@@ -799,8 +812,16 @@ class MultitaskKitchenDomain(SingleArmEnv):
         return np.array([0., -self.sim.data.qpos[self.cabinet_qpos_addrs], 0.]) + self.cabinet_object.cabinet_handle_offset
 
     @property
+    def _reach_drawer_offset(self):
+        return self._cabinet_handle   + np.array([0.,0.,0.1])
+
+    @property
     def _stove_top_offset(self):
         return np.array([0., 0.05, 0.])
+
+    @property
+    def _stove_button(self):
+        return np.array([0., 0.1*self.sim.data.qpos[self.button_qpos_addrs[1]], 0]) + self.button_object_1.reach_offset
 
     def get_state_vector(self, obs):
         return np.concatenate([obs["robot0_gripper_qpos"],
@@ -809,11 +830,13 @@ class MultitaskKitchenDomain(SingleArmEnv):
 
 
     def _get_skill_info(self, skill_name):
+
         info = {}
         if skill_name == 'reach-pot':
             info['pos'] = list(np.array(self.sim.data.body_xpos[self.pot_object_id])+np.array([0,0, 0.15])).copy()
             info['gripper'] = np.array([0])
-        elif skill_name == 'grasp-pot':
+          
+        elif skill_name == 'grasp-PotObject':
             pot_pos = np.array(self.sim.data.body_xpos[self.pot_object_id])
             info['pos']=list(pot_pos+ self.pot_object.handle_offset[0]).copy()
             
@@ -822,7 +845,7 @@ class MultitaskKitchenDomain(SingleArmEnv):
             info['is_grasp'] = self._check_grasp(self.robots[0].gripper, self.pot_object)
         
         elif skill_name == 'reach-cabinet':
-            info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id]+ self._cabinet_handle).copy()# self.cabinet_object.get_obj().get("pos")).copy() + np.array([-0.2, 0.15, 1.])).copy()
+            info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id]+ self._reach_drawer_offset).copy()# self.cabinet_object.get_obj().get("pos")).copy() + np.array([-0.2, 0.15, 1.])).copy()
             info['gripper'] = np.array([0])
            
         
@@ -831,14 +854,13 @@ class MultitaskKitchenDomain(SingleArmEnv):
             info['gripper'] = np.array([0])
         
         elif skill_name == 'reach-button':
-            info['pos'] = list(self.sim.data.body_xpos[self.stove_button_id] +self.button_object_1.reach_offset).copy()
+            info['pos'] = list(self.sim.data.body_xpos[self.stove_button_id] +self._stove_button).copy()
             info['gripper'] = np.array([1])
-
         elif skill_name == 'grasp-cabinet':
-            info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id] + self._cabinet_handle + np.array([0,0,-0.08])).copy()
+            info['pos']=list(self.sim.data.body_xpos[self.cabinet_drawer_id] + self._cabinet_handle).copy()
             info['ori'] = [0.] # get yaw angle
             info['is_grasp'] = self._check_grasp(self.robots[0].gripper, self.cabinet_object._contact_geom)
-            info['gripper'] = np.array([1])
+            info['gripper_reach'] = np.array([0])
             info['num_grasp_steps'] = 1
 
         elif skill_name == 'reach-bread':
@@ -848,10 +870,34 @@ class MultitaskKitchenDomain(SingleArmEnv):
             # info['ori'] = self.obj_ori(self.obj_pose('cube_bread',  {'cube_bread_pos': bread_pos, 'cube_bread_quat': self.obj_quat('cube_bread') }))
             info['gripper'] = np.array([0])
 
-        elif skill_name == 'grasp-bread':
+        elif skill_name == 'grasp-cube_bread':
             info['pos']=list(self.sim.data.body_xpos[self.obj_body_id['cube_bread']]).copy()
             info['ori'] = [0.] # get yaw angle
             info['is_grasp'] = self._check_grasp(self.robots[0].gripper, self.bread_ingredient)
             info['gripper'] = np.array([1])
 
+        elif skill_name == 'release-cube_bread':
+            info['delta1']=[0.,0.,0,0, -1]
+            info['delta2']=[0,0,0.05,0, -1]
+        elif skill_name == 'release-cabinet':
+            info['delta1']=[0,0,0.0, 0, -0.3]
+            info['delta2']=[0,0,0.15,0, 0]
+
+        elif skill_name == 'release-PotObject':
+            info['delta1']=[0.,0.,0,0, -1]
+            info['delta2']=[0,0.,0.1, 0, -1]
+
+        elif skill_name == 'slide-button':
+            info['delta']=[0.,0.5,0,0, 1]
+        
+        elif skill_name == 'slide-cabinet':
+            info['delta']=[0.,0.2,0,0, 1]
+        
         return info
+
+
+    def check_valid_skill(self, skill):
+        if skill not in self.valid_skills:
+            return False
+        else:
+            return True
