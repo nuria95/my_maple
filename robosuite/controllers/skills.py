@@ -533,7 +533,7 @@ class GraspSkill(BaseSkill):
         ori = super().get_ori_ac(info)
         if self._config['use_ori_params']:
             if self._state == 'INIT':
-                ori[:] = 0.0
+                ori[:] = [0.0]
                 is_delta = True
             else:
                 is_delta = False
@@ -546,7 +546,7 @@ class GraspSkill(BaseSkill):
         if self._state in ['GRASPED', 'REACHED']:
             gripper_action = np.array([1])
         else:
-            gripper_action = np.array([-1])
+            gripper_action = np.array([-1]) #info.get('gripper_reach', np.array([-1])) #np.array([-1]) #
         return gripper_action
 
     def _get_reach_pos(self, info):

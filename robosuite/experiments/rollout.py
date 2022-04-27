@@ -69,17 +69,10 @@ def rollout(
 ):
 
     o = env.reset()
-    env.viewer.set_camera(camera_id=0)
+    env.viewer.set_camera(camera_id=2)
     env.render()
-   
-
-    # # Resetting state capability
-    # mj_state = env.get_mj_state()
-    # env.sim.set_state(mj_state)
-    # env.sim.forward()
-    # env.render()
     a = 'reach_osc'
-    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='reach-bread')
+    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info,specific_skill='reach-cube_bread')
     
  
     a = 'grasp'
@@ -87,7 +80,7 @@ def rollout(
 
   
     a = 'reach_osc'
-    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info, specific_skill='reach-pot')
+    next_o, r, d, env_info, ob_dict = env.step(copy.deepcopy(a), image_obs_in_info=image_obs_in_info, specific_skill='reach-PotObject')
 
     
 
@@ -166,7 +159,7 @@ if __name__ == "__main__":
             use_camera_obs=False,
             control_freq=20,
             hard_reset = False,
-            #initialization_noise=None,
+            initialization_noise=None,
 
             **options
         )
